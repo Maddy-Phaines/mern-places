@@ -2,13 +2,19 @@
 import PlaceItem from "./PlaceItem";
 import Card from "../../shared/components/UIElements/Card";
 import "./PlaceList.css";
+import Button from "../../shared/components/FormElements/Button";
 
 export default function PlaceList({ items = [] }) {
   if (!Array.isArray(items) || items.length === 0) {
     return (
       <div className="place-list center">
         <Card>
-          <h2>No places found.</h2>
+          <h2 className="m-2 font-bold text-lg text-center">
+            No places found. Why not create one?
+          </h2>
+          <div className="flex flex-col items-center">
+            <Button to="/places/new">SHARE PLACE</Button>
+          </div>
         </Card>
       </div>
     );
@@ -20,11 +26,11 @@ export default function PlaceList({ items = [] }) {
         <PlaceItem
           key={p.id}
           id={p.id}
-          image={p.imageURL} // <- match your data
+          image={p.imageURL}
           title={p.title}
           address={p.address}
           description={p.description}
-          coordinates={p.location} // <- match your data
+          coordinates={p.location}
           creatorId={p.creator}
         />
       ))}

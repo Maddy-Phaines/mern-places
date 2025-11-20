@@ -8,10 +8,10 @@ const ModalOverlay = (props) => {
     <motion.div
       className={`modal ${props.className || ""}`}
       style={props.style}
-      initial={{ y: -40, opacity: 0 }} // slide down from above
+      initial={{ y: -20, opacity: 0 }} // slide down from above
       animate={{ y: 0, opacity: 1 }}
-      exit={{ y: -24, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 36, bounce: 0 }}
+      exit={{ y: -40, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 400, damping: 36, bounce: 0 }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-heading"
