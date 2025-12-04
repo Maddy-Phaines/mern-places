@@ -4,11 +4,11 @@ const Schema = mongoose.Schema;
 
 const userSchema = new Schema(
   {
-    name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, trim: true, unique: true },
-    password: { type: String, required: true, trim: true, minLength: 8 },
-    image: { type: String, required: false, trim: true },
-    places: { type: String, required: false, trim: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true, minlength: 6 },
+    image: { type: String, required: true },
+    places: [{ type: mongoose.Types.ObjectId, required: true, ref: "Place" }],
   },
   {
     timestamps: true,
