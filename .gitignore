@@ -10,15 +10,19 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # -------------------------
-# Environment / secrets
+# Environment / secrets (client + server)
 # -------------------------
+# never commit env files
 .env
-.env.local
-.env.*.local
+.env.*
+client/.env
+server/.env
+
+# local override files
 *.local
 
 # -------------------------
-# Build output (any package)
+# Build output
 # -------------------------
 dist/
 build/
@@ -29,11 +33,20 @@ build/
 **/.cache/
 
 # -------------------------
+# Uploads / user files
+# -------------------------
+# backend uploads folder should not be in repo
+server/uploads/
+client/uploads/
+**/uploads/
+
+# -------------------------
 # Logs
 # -------------------------
 logs/
 **/logs/
 *.log
+*.log.*
 
 # -------------------------
 # Tests / coverage
