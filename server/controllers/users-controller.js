@@ -1,31 +1,28 @@
 import HttpError from "../models/http-error.js";
 import User from "../models/user.js";
+import Place from "../models/place.js";
+import mongoose from "mongoose";
 
-import { v4 as uuidv4 } from "uuid";
-
-const DUMMY_USERS = [
-  {
-    id: "u1",
-    name: "Maddy Haines",
-    email: "test@test.com",
-    password: "testers",
-  },
-  {
-    id: "u2",
-    name: "Jenny Mayne",
-    email: "test2@test.com",
-    password: "testers2",
-  },
-];
-
-export const getUsers = (req, res, next) => {
-  const safeUsers = DUMMY_USERS.map(({ password, ...u }) => u);
-  return res.json({ users: safeUsers });
+export const getUsers = async (_req, res, next) => {
+  let users;
+  try {
+    users = await User.find({}, "-password");
+  } catch (err) {
+    const error = new HttpError(
+      "Could not get users. Please try again later",
+      500
+    );
+    return next(error);
+  }
+  return res
+    .status(200)
+    .json({ users: users.map((user) => user.toObject({ getters: true })) });
 };
 
-export const signUp = (req, res, next) => {
+// link file to user in the database
+export const signUp = async (req, res, next) => {
   let { name, email, password } = req.body;
-
+  /*
   if (
     typeof name !== "string" ||
     typeof email !== "string" ||
@@ -37,36 +34,51 @@ export const signUp = (req, res, next) => {
   name = name.trim();
   email = email.trim().toLowerCase();
   password = password.trim();
+  places = places.trim();
 
   // check fields are completed
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !places) {
     return next(new HttpError("All fields must be completed", 422));
   }
-
-  const hasAccount = DUMMY_USERS.some((u) => u.email.toLowerCase() === email);
-  if (hasAccount) {
+*/
+  let existingUser;
+  try {
+    existingUser = await User.findOne({ email: email });
+  } catch (err) {
+    const error = new HttpError("Signup failed. Please try again later", 500);
+    return next(error);
+  }
+  if (existingUser) {
     return next(
-      new HttpError(
-        "Could not sign up. A user with that email already exists.",
-        409
-      )
+      new HttpError("User already exists. Please login instead", 422)
     );
   }
-  const newUser = {
-    id: uuidv4(),
+  const newUser = new User({
     name,
     email,
+    image: req.file.path,
     password,
-  };
+    places: [],
+  });
 
-  DUMMY_USERS.push(newUser);
+  try {
+    await newUser.save();
+  } catch (err) {
+    const error = new HttpError("Signing up failed. Please try again.", 500);
+    return next(error);
+  }
 
-  const { password: _omit, ...safeUser } = newUser;
+  const safeUser = newUser.toObject({ getters: true });
+  delete safeUser.password;
 
-  return res.status(201).json({ message: "Account created", user: safeUser });
+  res.status(201).json({ user: safeUser });
 };
 
-export const login = (req, res, next) => {
+export const login = async (req, res, next) => {
+  // Debug: log incoming request body and headers to help trace validation issues
+  console.log("login req.body:", req.body);
+  console.log("login req.headers:", req.headers);
+
   let { email, password } = req.body;
 
   if (typeof email !== "string" || typeof password !== "string") {
@@ -75,14 +87,24 @@ export const login = (req, res, next) => {
   email = email.trim().toLowerCase();
   password = password.trim();
 
-  const user = DUMMY_USERS.find((u) => u.email.toLowerCase() === email);
+  let user;
+
+  try {
+    user = await User.findOne({ email });
+  } catch (err) {
+    return next(
+      new HttpError("Something went wrong. Please try again later.", 500)
+    );
+  }
+
   if (!user || user.password !== password) {
     return next(
       new HttpError("Could not login. Incorrect credentials provided.", 401)
     );
   }
 
-  const { password: _omit, ...safeUser } = user;
+  const safeUser = user.toObject({ getters: true });
+  delete safeUser.password;
 
   return res.status(200).json({ message: "Login successful", user: safeUser });
 };

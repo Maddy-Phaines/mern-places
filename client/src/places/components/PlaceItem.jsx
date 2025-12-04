@@ -1,14 +1,31 @@
 import "./PlaceItem.css";
 import Card from "../../shared/components/UIElements/Card";
-import Button from "../../shared/components/formElements/Button";
+import Button from "../../shared/components/FormElements/Button";
 import Modal from "../../shared/components/UIElements/Modal";
 import Map from "../../shared/components/UIElements/Map";
-import { useState, useContext } from "react";
 import { AuthContext } from "../../shared/context/auth-context";
+import { useHttpClient } from "../../shared/hooks/http-hook";
 
-const PlaceItem = ({ image, title, address, description, id, coordinates }) => {
+import { useState, useContext } from "react";
+import { useParams } from "react-router-dom";
+
+import PropTypes from "prop-types";
+
+const PlaceItem = ({
+  image,
+  title,
+  address,
+  description,
+  id,
+  coordinates,
+  creatorId,
+  onDeletePlace,
+  onDeleteError,
+}) => {
   const [showMap, setShowMap] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const { isLoading, error, sendRequest, clearError } = useHttpClient();
+  const { placeId } = useParams();
 
   const auth = useContext(AuthContext);
   const showMapHandler = () => {
@@ -27,9 +44,19 @@ const PlaceItem = ({ image, title, address, description, id, coordinates }) => {
     setShowConfirmModal(false);
   };
 
-  const confirmDeleteHandler = () => {
+  const confirmDeleteHandler = async () => {
     console.log("Deleting...");
     setShowConfirmModal(false);
+    try {
+      await sendRequest(`http://localhost:5000/api/places/${id}`, "DELETE");
+      // Notify parent that deletion succeeded
+      if (typeof onDeletePlace === "function") onDeletePlace(id);
+    } catch (err) {
+      // Notify parent of failure so it can show feedback
+      if (typeof onDeleteError === "function")
+        onDeleteError(err?.message || "Failed to delete place");
+      return;
+    }
   };
   return (
     <>
@@ -69,7 +96,7 @@ const PlaceItem = ({ image, title, address, description, id, coordinates }) => {
       <li className="place-item">
         <Card className="place-item__content">
           <div className="place-item__image">
-            <img src={image} alt={title} />
+            <img src={`http://localhost:5000/${image}`} alt={title} />
           </div>
           <div className="place-item__info">
             <h2>{title}</h2>
@@ -80,7 +107,7 @@ const PlaceItem = ({ image, title, address, description, id, coordinates }) => {
             <Button inverse onClick={showMapHandler}>
               VIEW ON MAP
             </Button>
-            {auth.isLoggedIn && (
+            {auth.userId === creatorId && (
               <>
                 <Button to={`/places/${id}`}>EDIT PLACE</Button>
                 <Button danger onClick={confirmDeleteWarningHandler}>
@@ -96,3 +123,15 @@ const PlaceItem = ({ image, title, address, description, id, coordinates }) => {
 };
 
 export default PlaceItem;
+
+PlaceItem.propTypes = {
+  image: PropTypes.string,
+  title: PropTypes.string.isRequired,
+  address: PropTypes.string,
+  description: PropTypes.string,
+  id: PropTypes.string.isRequired,
+  coordinates: PropTypes.object,
+  onDeletePlace: PropTypes.func,
+  onDeleteError: PropTypes.func,
+  creatorId: PropTypes.string,
+};

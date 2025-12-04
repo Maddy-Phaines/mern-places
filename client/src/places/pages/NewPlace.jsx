@@ -1,17 +1,31 @@
 import "./NewPlace.css";
 import Input from "../../shared/components/FormElements/input";
 import Button from "../../shared/components/FormElements/Button";
+import LoadingSpinner from "../../shared/components/UIElements/LoadingSpinner";
+import ErrorModal from "../../shared/components/UIElements/ErrorModal";
+import ImageUpload from "../../shared/components/FormElements/ImageUpload";
 import {
   VALIDATOR_REQUIRE,
   VALIDATOR_MINLENGTH,
 } from "../../shared/util/validators";
 import { useForm } from "../../shared/hooks/form-hook";
+import { useHttpClient } from "../../shared/hooks/http-hook";
+import { AuthContext } from "../../shared/context/auth-context";
+
+import { useContext } from "react";
+import { useNavigate } from "react-router-dom";
 
 const NewPlace = () => {
+  const auth = useContext(AuthContext);
+  const { isLoading, error, sendRequest, clearError } = useHttpClient();
   const [formState, handleFormChange] = useForm(
     {
       title: {
         value: "",
+        isValid: false,
+      },
+      image: {
+        value: null,
         isValid: false,
       },
       description: {
@@ -26,45 +40,67 @@ const NewPlace = () => {
     false
   );
 
-  const placeSubmitHandler = (e) => {
+  const navigate = useNavigate();
+
+  const placeSubmitHandler = async (e) => {
     e.preventDefault();
-    if (!formState.isValid) return;
-    console.log(formState.inputs);
+
+    try {
+      const formData = new FormData();
+      formData.append("title", formState.inputs.title.value);
+      formData.append("image", formState.inputs.image.value);
+      formData.append("description", formState.inputs.description.value);
+      formData.append("address", formState.inputs.address.value);
+      formData.append("creator", auth.userId);
+      await sendRequest("http://localhost:5000/api/places", "POST", formData);
+      navigate("/");
+    } catch (err) {}
   };
 
   return (
-    <form action="" className="place-form" onSubmit={placeSubmitHandler}>
-      <Input
-        id="title"
-        element="input"
-        type="text"
-        label="Title"
-        validators={[VALIDATOR_REQUIRE()]}
-        errorText="Please enter a valid title."
-        onInput={handleFormChange}
-      />
+    <>
+      <ErrorModal error={error} onClear={clearError} />
+      <form className="place-form" onSubmit={placeSubmitHandler}>
+        {isLoading && <LoadingSpinner asOverlay />}
+        <Input
+          id="title"
+          element="input"
+          type="text"
+          label="Title"
+          validators={[VALIDATOR_REQUIRE()]}
+          errorText="Please enter a valid title."
+          onInput={handleFormChange}
+        />
 
-      <Input
-        id="description"
-        element="textarea"
-        label="Description"
-        validators={[VALIDATOR_MINLENGTH(5)]}
-        errorText="Please enter a valid description."
-        onInput={handleFormChange}
-      />
+        <ImageUpload
+          center
+          id="image"
+          onInput={handleFormChange}
+          errorText="Please provide an image."
+        />
 
-      <Input
-        id="address"
-        element="input"
-        label="Address"
-        validators={[VALIDATOR_REQUIRE()]}
-        errorText="Please enter a valid address."
-        onInput={handleFormChange}
-      />
-      <Button type="submit" disabled={!formState.isValid}>
-        ADD PLACE
-      </Button>
-    </form>
+        <Input
+          id="description"
+          element="textarea"
+          label="Description"
+          validators={[VALIDATOR_MINLENGTH(5)]}
+          errorText="Please enter a valid description."
+          onInput={handleFormChange}
+        />
+
+        <Input
+          id="address"
+          element="input"
+          label="Address"
+          validators={[VALIDATOR_REQUIRE()]}
+          errorText="Please enter a valid address."
+          onInput={handleFormChange}
+        />
+        <Button type="submit" disabled={!formState.isValid}>
+          ADD PLACE
+        </Button>
+      </form>
+    </>
   );
 };
 

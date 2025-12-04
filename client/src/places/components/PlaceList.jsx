@@ -3,8 +3,13 @@ import PlaceItem from "./PlaceItem";
 import Card from "../../shared/components/UIElements/Card";
 import "./PlaceList.css";
 import Button from "../../shared/components/FormElements/Button";
+import PropTypes from "prop-types";
 
-export default function PlaceList({ items = [] }) {
+export default function PlaceList({
+  items = [],
+  onDeletePlace = () => {},
+  onDeleteError = () => {},
+}) {
   if (!Array.isArray(items) || items.length === 0) {
     return (
       <div className="place-list center">
@@ -26,14 +31,22 @@ export default function PlaceList({ items = [] }) {
         <PlaceItem
           key={p.id}
           id={p.id}
-          image={p.imageURL}
+          image={p.image}
           title={p.title}
           address={p.address}
           description={p.description}
           coordinates={p.location}
           creatorId={p.creator}
+          onDeletePlace={onDeletePlace}
+          onDeleteError={onDeleteError}
         />
       ))}
     </ul>
   );
 }
+
+PlaceList.propTypes = {
+  items: PropTypes.array,
+  onDeletePlace: PropTypes.func,
+  onDeleteError: PropTypes.func,
+};

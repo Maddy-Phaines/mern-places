@@ -33,3 +33,10 @@ export const placeIdValidator = [
     .isMongoId()
     .withMessage("pid must be a valid MongoDB ObjectId."),
 ];
+
+export const userIdValidator = [
+  param("uid")
+    .trim()
+    .isMongoId()
+    .withMessage("uid must be a valid MongoDB ObjectId."),
+];
