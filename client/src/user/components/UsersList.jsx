@@ -2,6 +2,8 @@ import UserItem from "./UserItem";
 import Card from "../../shared/components/UIElements/Card";
 import "./UsersList.css";
 const UsersList = ({ items }) => {
+  const userIds = items.map((user) => user.id);
+  console.log(userIds);
   if (items.length === 0) {
     return (
       <div className="text-center">
@@ -20,7 +22,7 @@ const UsersList = ({ items }) => {
           id={user.id}
           image={user.image}
           name={user.name}
-          placeCount={user.places}
+          placeCount={user.places.length}
         />
       ))}
     </ul>

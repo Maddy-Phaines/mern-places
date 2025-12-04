@@ -1,41 +1,75 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React from "react";
+import { Link } from "react-router-dom";
 
-import './Button.css';
+import "./Button.css";
 
-const Button = props => {
-  if (props.href) {
+const Button = ({
+  type = "button",
+  onClick,
+  href,
+  inverse,
+  to,
+  exact,
+  size,
+  danger,
+  disabled,
+  isLoading,
+  loadingLabel,
+  children,
+  ...rest
+}) => {
+  // Combine external disabled with loading state
+  const isDisabled = disabled || isLoading;
+
+  const classNames = [
+    "button",
+    inverse && "button--inverse",
+    danger && "button--danger",
+    isDisabled && "button--disabled",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  // Pick the label to show
+  const label = isLoading && loadingLabel ? loadingLabel : children;
+
+  if (href) {
     return (
       <a
-        className={`button button--${props.size || 'default'} ${props.inverse &&
-          'button--inverse'} ${props.danger && 'button--danger'}`}
-        href={props.href}
+        className={`button button--${size || "default"} ${
+          inverse && "button--inverse"
+        } ${danger && "button--danger"}`}
+        href={href}
       >
-        {props.children}
+        {children}
       </a>
     );
   }
-  if (props.to) {
+  if (to) {
     return (
       <Link
-        to={props.to}
-        exact={props.exact}
-        className={`button button--${props.size || 'default'} ${props.inverse &&
-          'button--inverse'} ${props.danger && 'button--danger'}`}
+        to={to}
+        exact={exact}
+        className={`button button--${size || "default"} ${
+          inverse && "button--inverse"
+        } ${danger && "button--danger"}`}
       >
-        {props.children}
+        {children}
       </Link>
     );
   }
   return (
     <button
-      className={`button button--${props.size || 'default'} ${props.inverse &&
-        'button--inverse'} ${props.danger && 'button--danger'}`}
-      type={props.type}
-      onClick={props.onClick}
-      disabled={props.disabled}
+      className={classNames}
+      type={type}
+      onClick={onClick}
+      disabled={isDisabled}
+      aria-busy={isLoading || undefined}
+      {...rest}
     >
-      {props.children}
+      <>
+        <span className="button__label">{label}</span>
+        {isLoading && <span className="button__spinner" aria-hidden="true" />}
+      </>
     </button>
   );
 };

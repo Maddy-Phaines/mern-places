@@ -55,7 +55,7 @@ const Input = (props) => {
 
   useEffect(() => {
     onInput(id, value, isValid);
-  }, [id, onInput, value, isValid]);
+  }, [id, value, isValid]);
 
   useEffect(() => {
     // only reset when parent-provided initialValue/initialValid change meaningfully

@@ -2,6 +2,8 @@ import Input from "../../shared/components/FormElements/input";
 import Button from "../../shared/components/FormElements/Button";
 import Card from "../../shared/components/UIElements/Card";
 import BirthdaySelect from "../components/BirthdayComposite";
+import ImageUpload from "../../shared/components/FormElements/ImageUpload";
+import { useHttpClient } from "../../shared/hooks/http-hook";
 import "./Auth.css";
 import {
   VALIDATOR_EMAIL,
@@ -11,7 +13,7 @@ import {
 import "../../places/pages/NewPlace.css";
 import { useForm } from "../../shared/hooks/form-hook";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AuthContext } from "../../shared/context/auth-context";
 import { useContext } from "react";
 
@@ -39,6 +41,10 @@ const signupConfig = {
       value: "",
       isValid: false,
     },
+    image: {
+      value: null,
+      isValid: false,
+    },
     email: {
       value: "",
       isValid: false,
@@ -54,13 +60,26 @@ const signupConfig = {
 const Auth = () => {
   const auth = useContext(AuthContext);
   const [isLoginMode, setIsLoginMode] = useState(true);
-
+  const [shake, setShake] = useState(false);
   const [dob, setDob] = useState({ day: "", month: "", year: "" });
+  const { isLoading, error, sendRequest, clearError } = useHttpClient();
 
   const [formState, handleFormChange, setFormData] = useForm(
     loginConfig.inputs,
     loginConfig.isValid
   );
+
+  useEffect(() => {
+    if (!shake) return;
+    const timer = setTimeout(() => setShake(false), 300);
+    return () => clearTimeout(timer);
+  }, [shake]);
+
+  const handleInput = (...args) => {
+    // if (error) setError(null);
+    console.log(handleFormChange(...args));
+    console.log(...args);
+  };
   const dobComplete = !!(dob.day && dob.month && dob.year);
 
   const emailValidators = useMemo(
@@ -69,6 +88,7 @@ const Auth = () => {
   );
   const pwValidators = useMemo(() => [VALIDATOR_MINLENGTH(8)], []);
   const nameValidators = useMemo(() => [VALIDATOR_REQUIRE()], []);
+
   const handleSwitchMode = () => {
     const nextIsLoginMode = !isLoginMode;
     const base = nextIsLoginMode ? loginConfig : signupConfig;
@@ -88,28 +108,82 @@ const Auth = () => {
           nextInputs.email?.isValid &&
           nextInputs.password?.isValid &&
           nextInputs.firstName?.isValid &&
-          nextInputs.surname?.isValid
+          nextInputs.surname?.isValid &&
+          nextInputs.image?.isValid
         );
 
+    console.log("Inputs:", nextInputs);
     setFormData(nextInputs, isValid);
     setIsLoginMode(nextIsLoginMode);
   };
 
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
+
+    console.log(formState.inputs);
+
+    console.log(
+      "SUBMIT CLICKED, isLoginMode:",
+      isLoginMode,
+      "formState:",
+      formState
+    );
     if (!formState.isValid) return;
     if (!isLoginMode && !dobComplete) return;
-    //call login here?
 
     const { email, password } = formState.inputs;
-    const emailValue = email.value.trim().toLowerCase();
-    const passwordValue = password.value;
 
-    auth.login();
+    const fullName = !isLoginMode
+      ? `${formState.inputs.firstName.value} ${formState.inputs.surname.value}`
+      : undefined;
+
+    try {
+      const url = isLoginMode
+        ? "http://localhost:5000/api/users/login"
+        : "http://localhost:5000/api/users/signup";
+      const headers = isLoginMode ? { "Content-Type": "application/json" } : {};
+      const formData = new FormData();
+      let body;
+      if (isLoginMode) {
+        body = JSON.stringify({
+          email: formState.inputs.email.value,
+          password: formState.inputs.password.value,
+        });
+      } else {
+        formData.append("email", formState.inputs.email.value);
+        formData.append("name", fullName);
+        formData.append("password", formState.inputs.password.value);
+        formData.append("image", formState.inputs.image.value);
+        body = formData;
+      }
+
+      let bodyPreview;
+      if (isLoginMode) {
+        try {
+          bodyPreview = JSON.parse(body);
+        } catch (e) {
+          bodyPreview = body;
+        }
+      } else {
+        bodyPreview = Array.from(body.entries());
+      }
+      console.log("Auth sending", { url, headers, bodyPreview });
+
+      const responseData = await sendRequest(url, "POST", body, headers);
+
+      // Pass the user id if your context expects it
+      auth.login(responseData.user.id);
+      // In Auth.jsx after auth.login(...)
+      console.log("Logged in userId:", responseData.user.id);
+    } catch (err) {
+      console.error("Auth error:", err);
+
+      setShake(true); // trigger shake
+    }
 
     console.log({
-      email: emailValue,
-      passwordLength: passwordValue.length,
+      email,
+      passwordLength: password.length,
       ...(!isLoginMode &&
         dobComplete && {
           dateOfBirth: `${dob.day}-${dob.month}-${dob.year}`,
@@ -118,7 +192,8 @@ const Auth = () => {
   };
 
   return (
-    <Card className="authentication">
+    <Card className={`authentication ${shake ? "authentication--shake" : ""}`}>
+      {error && <p className="auth-error">{error}</p>}
       {isLoginMode ? <h2>Login Required</h2> : <h2>Create a new account</h2>}
 
       <hr />
@@ -137,24 +212,29 @@ const Auth = () => {
               placeholder="First name"
               validators={nameValidators}
               errorText="What's your name?"
-              onInput={handleFormChange}
+              onInput={handleInput}
             />
+
             <Input
               id="surname"
               element="input"
               type="text"
               label=""
-              name="surName"
+              name="surname"
               autoComplete="family-name"
               autoCapitalize="none"
               spellCheck={false}
               placeholder="Surname"
               validators={nameValidators}
               errorText="What's your surname?"
-              onInput={handleFormChange}
+              onInput={handleInput}
             />
           </div>
         )}
+        {!isLoginMode && (
+          <ImageUpload center id="image" onInput={handleInput} />
+        )}
+
         <Input
           id="email"
           element="input"
@@ -194,9 +274,12 @@ const Auth = () => {
         />
         {!isLoginMode && <BirthdaySelect value={dob} onChange={setDob} />}
         <div className="my-4"></div>
+
         <Button
           type="submit"
           inverse
+          isLoading={isLoading}
+          loadingLabel={isLoginMode ? "LOGGING IN..." : "SIGNING UP..."}
           disabled={!formState.isValid || (!isLoginMode && !dobComplete)}
         >
           {isLoginMode ? "LOGIN" : "SIGN UP"}

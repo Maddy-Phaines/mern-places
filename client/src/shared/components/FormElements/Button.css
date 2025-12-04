@@ -59,3 +59,41 @@
 .button--big {
   font-size: 1.5rem;
 }
+
+.button {
+  /* your existing styles */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem; /* space between spinner and text */
+}
+
+/* Ensure label + spinner layout is nice */
+.button__label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Small, inline spinner */
+.button__spinner {
+  width: 1em; /* scales with font size */
+  height: 1em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  animation: button-spinner 0.6s linear infinite;
+}
+
+/* Optional: change cursor / opacity when disabled */
+.button[disabled],
+.button--disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes button-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
