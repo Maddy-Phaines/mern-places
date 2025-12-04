@@ -13,18 +13,26 @@ import {
   createPlaceValidators,
   updatePlaceValidators,
   placeIdValidator,
+  userIdValidator,
 } from "../validators/place-validators.js";
 
 import { validateRequest } from "../middleware/validate-request.js";
+import { imageFileUpload } from "../middleware/file-upload.js";
 
 const router = Router();
 
 // GET
-router.get("/user/:uid", getPlacesByUserId);
+router.get("/user/:uid", userIdValidator, validateRequest, getPlacesByUserId);
 router.get("/:pid", placeIdValidator, validateRequest, getPlaceById);
 
 // CREATE
-router.post("/", createPlaceValidators, validateRequest, createPlace);
+router.post(
+  "/",
+  imageFileUpload.single("image"),
+  createPlaceValidators,
+  validateRequest,
+  createPlace
+);
 
 // UPDATE
 router.patch(

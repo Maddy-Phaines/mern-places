@@ -2,46 +2,31 @@
 import HttpError from "../models/http-error.js";
 import { getCoordinatesFromAddress } from "../util/location.js";
 import Place from "../models/place.js";
+import User from "../models/user.js";
+import mongoose from "mongoose";
+import fs from "fs";
 
-import { v4 as uuidv4 } from "uuid";
-
-const DUMMY_PLACES = [
-  {
-    id: uuidv4(),
-    title: "Empire State Building",
-    description: "...",
-    location: { lat: 40.7484405, lng: -73.9856644 },
-    address: "20 W 34th St., New York, NY 10001, United States",
-    creator: "u1", // <-- must be exactly "u1"
-  },
-  {
-    id: uuidv4(),
-    title: "Something else",
-    description: "...",
-    location: { lat: 40.7484405, lng: -73.9856644 },
-    address: "20 W 34th St., New York, NY 10001, United States",
-    creator: "u2",
-  },
-];
 // find id of the creator
 export const getPlacesByUserId = async (req, res, next) => {
   const userId = req.params.uid;
-  console.log("user id is:", userId);
-  let places;
+
+  let placesWithUser;
   try {
-    places = await Place.find({ creator: userId });
+    placesWithUser = await User.findById(userId).populate("places");
   } catch (err) {
     console.error("Something went wrong.", err);
     const error = new HttpError("Something went wrong. Place not found.", 500);
     return next(error);
   }
 
-  if (places.length === 0) {
+  if (placesWithUser.places.length === 0) {
     return next(new HttpError("No places found for the user id provided", 404));
   }
 
   return res.json({
-    places: places.map((place) => place.toObject({ getters: true })),
+    places: placesWithUser.places.map((place) =>
+      place.toObject({ getters: true })
+    ),
   });
 };
 
@@ -59,7 +44,7 @@ export const getPlaceById = async (req, res, next) => {
   if (!place) {
     return next(new HttpError("A place was not found for that id.", 404));
   }
-  console.log({ place: place.toObject() });
+  console.log({ place: place.toObject({ getters: true }) });
   return res.json({ place: place.toObject({ getters: true }) });
 };
 
@@ -71,14 +56,10 @@ export const createPlace = async (req, res, next) => {
   } catch (error) {
     return next(
       new HttpError(
-        error.message || "Failed to retrieve coordinates for the given address"
+        error.message || "Failed to retrieve coordinates for the given address",
+        500
       )
     );
-  }
-
-  // TODO(ev): remove once express-validator covers this
-  if (!title || !description || !address || !creator) {
-    return next(new HttpError("Missing required fields.", 422));
   }
 
   const createdPlace = new Place({
@@ -86,24 +67,47 @@ export const createPlace = async (req, res, next) => {
     description,
     address,
     location: coordinates,
-    image:
-      "https://en.wikipedia.org/wiki/Empire_State_Building_in_popular_culture#/media/File:Empire_State_Building_(aerial_view).jpg",
+    image: req.file.path,
     creator,
   });
 
-  try {
-    await createdPlace.save();
-    console.log("Place created.");
-  } catch (err) {
-    console.log("Mongoose save error:", err);
-    const error = new HttpError(
-      "Creating place failed. Please try again.",
-      500
-    );
-    return next(error);
-  }
+  // Use a transaction to keep Place and User documents in sync
+  const session = await mongoose.startSession();
 
-  return res.status(201).json({ place: createdPlace });
+  try {
+    session.startTransaction();
+
+    // Persist the new place as part of the transaction
+    await createdPlace.save({ session });
+
+    // Load the creator within the same transactional session
+    const user = await User.findById(creator).session(session);
+
+    if (!user) {
+      // Abort if the referenced user does not exist
+      throw new HttpError("No user found with the provided id.", 404);
+    }
+
+    user.places.push(createdPlace._id);
+    await user.save({ session });
+
+    // Commit everything
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(201).json({
+      place: createdPlace.toObject({ getters: true }),
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+
+    if (err instanceof HttpError) {
+      return next(err);
+    }
+
+    return next(new HttpError("Creating place failed. Please try again.", 500));
+  }
 };
 
 /**
@@ -182,35 +186,50 @@ export const updatePlace = async (req, res, next) => {
   return res.status(200).json({ place: place.toObject({ getters: true }) });
 };
 
+// Delete a place and remove its reference from the creator's user document.
+// Both operations must occur within a single transaction to maintain
+// referential integrity: either both succeed, or both are rolled back.
 export const deletePlaceById = async (req, res, next) => {
   const placeId = req.params.pid;
-
-  let place;
-
-  try {
-    place = await Place.findById(placeId);
-  } catch (err) {
-    console.log("Something went wrong. Unable to delete item.", 500);
-    const error = new HttpError(
-      "Something went wrong. Unable to delete place.",
-      500
-    );
-    return next(error);
-  }
-
-  if (!place) {
-    return next(new HttpError("No place found with the provided id.", 404));
-  }
+  const session = await mongoose.startSession();
 
   try {
-    await place.deleteOne();
+    session.startTransaction();
+
+    // Load the place within the transactional session.
+    // If the place does not exist, abort the operation.
+    const place = await Place.findById(placeId).session(session);
+    if (!place) {
+      throw new HttpError("No place found with the provided id.", 404);
+    }
+    const imagePath = place.image;
+    console.log(imagePath);
+    // Load the creator and update their referenced places.
+    // Ensures we do not leave an orphaned ObjectId reference behind.
+    const user = await User.findById(place.creator).session(session);
+    user.places = user.places.filter((p) => p.toString() !== placeId);
+    await user.save({ session });
+
+    // Delete the place document as part of the same atomic transaction.
+    await place.deleteOne({ session });
+
+    // Finalise all changes.
+    await session.commitTransaction();
+    session.endSession();
   } catch (err) {
-    console.log("Something went wrong.", 500);
-    const error = new HttpError(
-      "Something went wrong. Unable to delete place.",
-      500
-    );
-    return next(error);
+    // Rollback the transaction and abort the session on any failure.
+    await session.abortTransaction();
+    session.endSession();
+
+    if (err instanceof HttpError) {
+      return next(err);
+    }
+
+    return next(new HttpError("Failed to delete place.", 500));
   }
+  fs.unlink(imagePath, (err) => {
+    console.log(err);
+  });
+
   return res.status(204).end();
 };
